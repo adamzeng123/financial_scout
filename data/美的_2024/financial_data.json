@@ -1,0 +1,77 @@
+{
+  "company": "美的",
+  "report_year": 2024,
+  "currency": "RMB",
+  "unit": "元",
+  "detected_unit": "千元",
+  "unit_multiplier": 1000,
+  "unit_confidence": "high",
+  "current_period": {
+    "label": "2024年度",
+    "balance_sheet": {
+      "货币资金": null,
+      "应收账款": null,
+      "存货": null,
+      "流动资产合计": null,
+      "资产总计": null,
+      "短期借款": null,
+      "应付票据": null,
+      "交易性金融负债": null,
+      "一年内到期的非流动负债": null,
+      "流动负债合计": null,
+      "负债合计": null,
+      "归属于母公司所有者权益合计": null
+    },
+    "income_statement": {
+      "营业收入": 407149600000,
+      "营业成本": null,
+      "销售费用": null,
+      "管理费用": null,
+      "研发费用": null,
+      "财务费用": null,
+      "其中_利息费用": null,
+      "利润总额": null,
+      "所得税费用": null,
+      "净利润": 36066635000,
+      "归属于母公司股东的净利润": 36066635000
+    },
+    "cash_flow": {
+      "经营活动产生的现金流量净额": null,
+      "购建固定资产_无形资产和其他长期资产支付的现金": null
+    }
+  },
+  "prior_period": {
+    "label": "2023年度",
+    "balance_sheet": {
+      "货币资金": null,
+      "应收账款": null,
+      "存货": null,
+      "流动资产合计": null,
+      "资产总计": null,
+      "短期借款": null,
+      "应付票据": null,
+      "交易性金融负债": null,
+      "一年内到期的非流动负债": null,
+      "流动负债合计": null,
+      "负债合计": null,
+      "归属于母公司所有者权益合计": null
+    },
+    "income_statement": {
+      "营业收入": null,
+      "营业成本": null,
+      "销售费用": null,
+      "管理费用": null,
+      "研发费用": null,
+      "财务费用": null,
+      "其中_利息费用": null,
+      "利润总额": null,
+      "所得税费用": null,
+      "净利润": 33122326000,
+      "归属于母公司股东的净利润": 33122326000
+    },
+    "cash_flow": {
+      "经营活动产生的现金流量净额": null,
+      "购建固定资产_无形资产和其他长期资产支付的现金": null
+    }
+  }
+}

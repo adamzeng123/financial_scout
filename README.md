@@ -2,6 +2,12 @@
 
 基于财务数据的结构化评分系统，从年报PDF中自动提取数据，通过16项指标计算100分制财务质量评分，支持跨公司对比分析。
 
+## 演示视频
+
+[![Financial Scout Demo](https://img.youtube.com/vi/s_T65UJgOnQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=s_T65UJgOnQ)
+
+> 点击图片观看完整演示
+
 ## 系统架构
 
 ```

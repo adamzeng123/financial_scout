@@ -32,21 +32,61 @@ REQUIRED_CF_FIELDS = [
 ]
 
 
-def _load_ontology_aliases() -> str:
+def _load_ontology_context() -> str:
     """
-    从ontology加载别名映射，格式化为LLM prompt中的术语参考段落。
+    从ontology加载完整的提取语义上下文，包括：
+    - 别名映射（跨语言/跨公司术语容错）
+    - 提取提示（正负号、括号处理、子项关系）
+    - 术语定义（帮助LLM理解含义以正确定位）
+
     如果ontology不可用，返回空字符串（不影响提取流程）。
     """
     try:
         import ontology_service
-        aliases_map = ontology_service.get_aliases_for_extraction()
-        if not aliases_map:
+        data = ontology_service.load_current()
+        terms = data.get("terms", {})
+        if not terms:
             return ""
-        lines = ["以下是各字段的别名对照表，年报中可能使用不同的名称，请统一映射到左侧的标准字段名："]
-        for field_key, aliases in aliases_map.items():
-            alt = [a for a in aliases if a != field_key]
-            if alt:
-                lines.append(f"  - {field_key} ← 也可能叫：{', '.join(alt)}")
+
+        # 按报表分组
+        tables = {"balance_sheet": [], "income_statement": [], "cash_flow": []}
+        for t in terms.values():
+            table = t.get("source_table", "")
+            if table in tables:
+                tables[table].append(t)
+
+        table_labels = {
+            "balance_sheet": "资产负债表",
+            "income_statement": "利润表",
+            "cash_flow": "现金流量表",
+        }
+
+        lines = ["以下是术语语义参考，帮助你正确识别和提取每个字段：", ""]
+
+        for table_key, table_terms in tables.items():
+            if not table_terms:
+                continue
+            lines.append(f"【{table_labels[table_key]}字段】")
+            for t in table_terms:
+                field_key = t.get("field_key", t.get("canonical", ""))
+                # 别名
+                all_aliases = []
+                for lang_aliases in t.get("aliases", {}).values():
+                    all_aliases.extend(lang_aliases)
+                alt = [a for a in dict.fromkeys(all_aliases) if a != field_key]
+                alias_str = f"（别名：{', '.join(alt)}）" if alt else ""
+
+                # 提取提示
+                hint = t.get("extraction_hint", "")
+                hint_str = f" → {hint}" if hint else ""
+
+                # 子项关系
+                parent = t.get("parent_item", "")
+                parent_str = f" [是{parent}的子项]" if parent else ""
+
+                lines.append(f"  - {field_key}{alias_str}{parent_str}{hint_str}")
+            lines.append("")
+
         return "\n".join(lines)
     except Exception:
         return ""
@@ -80,22 +120,172 @@ def pdf_to_text(pdf_path: str | Path) -> list[dict]:
 # 2. 关键词定位报表页面
 # ---------------------------------------------------------------------------
 
+def _is_data_page(text: str) -> bool:
+    """判断页面是否包含实际财务数字（而不仅仅是目录引用）。"""
+    # 至少包含3个看起来像财务数字的模式（如 123,456 或 (123,456)）
+    numbers = re.findall(r'[\d,]{4,}', text)
+    return len(numbers) >= 3
+
+
+def build_page_index(pdf_path: str | Path) -> dict:
+    """
+    构建PDF页面索引，三层策略定位报表页面：
+    1. PDF书签（最可靠，大部分年报PDF都有结构化书签）
+    2. LLM辅助（从目录页提取页码映射）
+    3. 关键词匹配（兜底）
+
+    返回 {"balance_sheet": page_num, "income_statement": page_num,
+           "cash_flow": page_num, "audit_opinion": page_num, "method": "bookmark|llm|keyword"}
+    """
+    doc = fitz.open(str(pdf_path))
+    toc = doc.get_toc()
+    index = {}
+
+    # --- 策略1：PDF书签 ---
+    if toc:
+        # 定义报表类型和匹配关键词
+        statement_patterns = {
+            "balance_sheet": ["合并资产负债表", "合并及公司资产负债表", "合并及母公司资产负债表", "合併資產負債表"],
+            "income_statement": ["合并利润表", "合并及公司利润表", "合并及母公司利润表", "合併損益表", "合併綜合損益表"],
+            "cash_flow": ["合并现金流量表", "合并及公司现金流量表", "合并及母公司现金流量表", "合併現金流量表"],
+            "audit_opinion": ["审计报告", "審計報告"],
+        }
+
+        for stmt_type, patterns in statement_patterns.items():
+            for level, title, page in toc:
+                title_clean = title.strip()
+                for pat in patterns:
+                    if pat in title_clean:
+                        # 书签中直接找到，页码即为报表起始页
+                        index[stmt_type] = page  # 1-indexed
+                        break
+                if stmt_type in index:
+                    break
+
+        # 如果书签中没有直接的报表标题，但有"财务报表"总入口
+        if len(index) < 3:
+            for level, title, page in toc:
+                if "财务报表" in title.strip() and "附注" not in title.strip() and "编制" not in title.strip():
+                    # "二、财务报表" 类型的总入口
+                    if "balance_sheet" not in index:
+                        index["balance_sheet"] = page
+                    break
+
+    if len(index) >= 3:
+        index["method"] = "bookmark"
+        doc.close()
+        return index
+
+    # --- 策略2：LLM从目录页提取（如果书签不足） ---
+    if len(index) < 3:
+        # 找目录页（通常在前20页，包含"目录"关键词）
+        toc_text = ""
+        for i in range(min(30, doc.page_count)):
+            text = doc[i].get_text()
+            if "目录" in text[:100] or "目 录" in text[:100]:
+                # 取目录页和后续几页
+                for j in range(i, min(i + 5, doc.page_count)):
+                    toc_text += doc[j].get_text() + "\n"
+                break
+
+        if toc_text and len(toc_text) > 100:
+            try:
+                client = get_client()
+                response = client.chat.completions.create(
+                    model=MODEL,
+                    max_tokens=300,
+                    temperature=0,
+                    messages=[{
+                        "role": "user",
+                        "content": f"""请从以下年报目录文本中提取三张主要合并报表和审计报告的起始页码。
+
+只返回JSON，格式如下：
+{{"balance_sheet": 页码数字, "income_statement": 页码数字, "cash_flow": 页码数字, "audit_opinion": 页码数字}}
+
+如果找不到某项，值设为null。只返回JSON，不要返回其他内容。
+
+目录文本：
+{toc_text[:3000]}"""
+                    }]
+                )
+                raw = response.choices[0].message.content.strip()
+                cleaned = raw
+                if cleaned.startswith("```"):
+                    cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+                    cleaned = cleaned.rsplit("```", 1)[0]
+                llm_index = json.loads(cleaned.strip())
+
+                for key in ["balance_sheet", "income_statement", "cash_flow", "audit_opinion"]:
+                    if key not in index and llm_index.get(key):
+                        index[key] = int(llm_index[key])
+
+                if len(index) >= 3:
+                    index["method"] = "llm_toc"
+                    doc.close()
+                    return index
+            except Exception:
+                pass
+
+    doc.close()
+
+    # --- 策略3：返回空索引，交给 keyword fallback ---
+    index["method"] = "keyword"
+    return index
+
+
+def find_pages_by_index(pages: list[dict], start_page: int,
+                        context_pages: int = 3) -> str:
+    """根据页面索引直接提取指定页面及其后续几页的文本。"""
+    idx = start_page - 1  # 转为0-indexed
+    matched = []
+    for offset in range(0, context_pages + 1):
+        i = idx + offset
+        if 0 <= i < len(pages):
+            matched.append(f"=== 第{pages[i]['page']}页 ===\n{pages[i]['text']}")
+    return "\n\n".join(matched)
+
+
 def find_pages_by_keywords(pages: list[dict], keywords: list[str],
                            context_pages: int = 3) -> str:
     """
     搜索包含关键词的页面，返回这些页面及其前后context_pages页的合并文本。
+    优先选择包含实际数字的页面（过滤目录页、附注引用页等）。
     """
-    matched_indices = set()
+    # 第一步：找到所有包含关键词的页面，区分标题页和引用页
+    title_pages = []   # 关键词出现在页面开头（是报表标题）
+    ref_pages = []     # 关键词出现在页面中间（是目录或附注引用）
     for i, page in enumerate(pages):
+        text = page["text"]
         for kw in keywords:
-            if kw in page["text"]:
-                for offset in range(-1, context_pages + 1):
-                    idx = i + offset
-                    if 0 <= idx < len(pages):
-                        matched_indices.add(idx)
+            pos = text.find(kw)
+            if pos >= 0:
+                # 关键词在前100字符内，且页面包含数字 → 大概率是报表标题页
+                if pos < 100 and _is_data_page(text):
+                    title_pages.append(i)
+                else:
+                    ref_pages.append(i)
+                break
 
-    if not matched_indices:
+    if not title_pages and not ref_pages:
         return ""
+
+    # 第二步：优先用标题页作为锚点
+    anchor_pages = title_pages if title_pages else ref_pages
+
+    # 第三步：取第一个锚点（报表主体在年报中比附注更靠前）
+    best_anchor = min(anchor_pages)
+
+    # 第四步：从锚点向前后扩展context_pages
+    matched_indices = set()
+    for offset in range(-1, context_pages + 1):
+        idx = best_anchor + offset
+        if 0 <= idx < len(pages):
+            matched_indices.add(idx)
+
+    # 也把其他紧邻的标题页加进来（如资产负债表跨3-4页）
+    for i in anchor_pages:
+        if abs(i - best_anchor) <= context_pages + 1:
+            matched_indices.add(i)
 
     sorted_indices = sorted(matched_indices)
     sections = []
@@ -105,24 +295,57 @@ def find_pages_by_keywords(pages: list[dict], keywords: list[str],
     return "\n\n".join(sections)
 
 
-def find_financial_statements(pages: list[dict]) -> dict[str, str]:
+KEYWORD_SETS = {
+    "balance_sheet": [
+        "合并资产负债表", "合并及母公司资产负债表",
+        "合并及公司资产负债表", "合併資產負債表",
+    ],
+    "income_statement": [
+        "合并利润表", "合并及母公司利润表",
+        "合并及公司利润表", "合併損益表", "合併綜合損益表",
+    ],
+    "cash_flow": [
+        "合并现金流量表", "合并及母公司现金流量表",
+        "合并及公司现金流量表", "合併現金流量表",
+    ],
+    "audit_opinion": [
+        "审计意见类型", "审计报告", "审计意见", "審計報告",
+    ],
+}
+
+CONTEXT_PAGES = {
+    "balance_sheet": 3,
+    "income_statement": 2,
+    "cash_flow": 2,
+    "audit_opinion": 3,
+}
+
+
+def find_financial_statements(pages: list[dict],
+                              pdf_path: str | Path | None = None) -> dict[str, str]:
     """
     定位三张主要报表和审计意见的文本段落。
+    三层策略：书签索引 → LLM目录解析 → 关键词匹配。
     """
-    return {
-        "balance_sheet": find_pages_by_keywords(
-            pages, ["合并资产负债表", "合并及母公司资产负债表"], context_pages=3
-        ),
-        "income_statement": find_pages_by_keywords(
-            pages, ["合并利润表", "合并及母公司利润表"], context_pages=2
-        ),
-        "cash_flow": find_pages_by_keywords(
-            pages, ["合并现金流量表", "合并及母公司现金流量表"], context_pages=2
-        ),
-        "audit_opinion": find_pages_by_keywords(
-            pages, ["审计意见类型", "审计报告", "审计意见"], context_pages=3
-        ),
-    }
+    result = {}
+    index = {}
+
+    # 尝试从PDF书签/目录构建索引
+    if pdf_path:
+        index = build_page_index(pdf_path)
+
+    # 对每张报表：有索引用索引，没索引用关键词
+    for stmt_type, keywords in KEYWORD_SETS.items():
+        ctx = CONTEXT_PAGES[stmt_type]
+        if stmt_type in index and isinstance(index[stmt_type], int):
+            result[stmt_type] = find_pages_by_index(pages, index[stmt_type], context_pages=ctx)
+        else:
+            result[stmt_type] = find_pages_by_keywords(pages, keywords, context_pages=ctx)
+
+    # 附加索引方法信息供调试
+    result["_index_method"] = index.get("method", "keyword")
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +357,11 @@ EXTRACT_PROMPT = """你是专业的财务数据提取员。请从以下年报文
 要求：
 - 提取本期（当年）和上期（上年）两列数据
 - 直接提取原文中的数字，不要做单位换算（系统会自动处理单位）
+- 如果报表同时包含"合并"和"公司"两组列，只提取"合并"列的数据
+- 括号内的数字表示负数，如 (299,584,935) 应提取为 -299584935
+- "减：营业成本"等带"减："前缀的项目，提取其绝对值（正数），不带负号
+- "财务费用"有的公司叫"财务收入"或"财务费用/(收入)"，如果是净收入则为负数
+- "其中：利息费用"是财务费用的子项，注意提取正确层级
 - 严格以JSON格式返回，不要返回其他内容
 - 如果某个字段在文本中找不到，值设为null
 - 注意区分合并报表和母公司报表，只提取合并报表数据
@@ -324,7 +552,7 @@ def extract_financial_data(sections: dict[str, str], company: str,
     cf_text = sections["cash_flow"][:5000]
 
     # 从ontology注入术语别名，提高跨公司/跨语言提取容错
-    aliases_ref = _load_ontology_aliases()
+    aliases_ref = _load_ontology_context()
     prompt = EXTRACT_PROMPT.format(
         balance_sheet_text=bs_text or "（未找到资产负债表文本）",
         income_statement_text=is_text or "（未找到利润表文本）",
@@ -484,14 +712,16 @@ def process_pdf(pdf_path: str | Path, company: str, report_year: int,
     # Step 1: PDF转文本
     pages = pdf_to_text(pdf_path)
 
-    # Step 2: 定位报表页面
-    sections = find_financial_statements(pages)
+    # Step 2: 定位报表页面（书签索引 → LLM目录 → 关键词）
+    sections = find_financial_statements(pages, pdf_path=pdf_path)
 
-    # 记录找到的页码
-    pages_found = {}
+    # 记录找到的页码和索引方法
+    index_method = sections.pop("_index_method", "keyword")
+    pages_found = {"_index_method": index_method}
     for key, text in sections.items():
-        page_nums = re.findall(r"=== 第(\d+)页 ===", text)
-        pages_found[key] = [int(p) for p in page_nums]
+        if isinstance(text, str):
+            page_nums = re.findall(r"=== 第(\d+)页 ===", text)
+            pages_found[key] = [int(p) for p in page_nums]
 
     # Step 3: LLM提取财务数据
     financial_data = extract_financial_data(sections, company, report_year)
@@ -559,6 +789,8 @@ if __name__ == "__main__":
     mult = fd.get("unit_multiplier", 1)
     confidence = fd.get("unit_confidence", "unknown")
     print(f"检测到单位: {detected} (置信度: {confidence})" + (f" → 已自动换算 ×{mult:,.0f} 到元" if mult != 1 else ""))
+    idx_method = result['pages_found'].get('_index_method', 'keyword')
+    print(f"索引方法: {idx_method}")
     print(f"报表页码: {result['pages_found']}")
     print(f"输出JSON: {result['output_json']}")
     print(f"输出TXT:  {result['output_txt']}")

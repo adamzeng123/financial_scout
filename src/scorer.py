@@ -392,70 +392,74 @@ def run_scoring(data: dict,
     pi = pri["income_statement"]
     pc = pri["cash_flow"]
 
+    # Null安全访问：缺失字段视为0，避免None参与计算崩溃
+    def safe(d: dict, key: str, default: float = 0) -> float:
+        v = d.get(key)
+        return float(v) if v is not None else default
+
     # --- 计算衍生指标 ---
 
     # ROE (两种口径都算)
-    roe_endpoint = calc_roe(ci["归属于母公司股东的净利润"],
-                            pb["归属于母公司所有者权益合计"],
-                            cb["归属于母公司所有者权益合计"],
+    roe_endpoint = calc_roe(safe(ci, "归属于母公司股东的净利润"),
+                            safe(pb, "归属于母公司所有者权益合计"),
+                            safe(cb, "归属于母公司所有者权益合计"),
                             method="endpoint")
-    roe_weighted = calc_roe(ci["归属于母公司股东的净利润"],
-                            pb["归属于母公司所有者权益合计"],
-                            cb["归属于母公司所有者权益合计"],
+    roe_weighted = calc_roe(safe(ci, "归属于母公司股东的净利润"),
+                            safe(pb, "归属于母公司所有者权益合计"),
+                            safe(cb, "归属于母公司所有者权益合计"),
                             method="weighted_avg")
     roe_selected = roe_weighted if roe_method == "weighted_avg" else roe_endpoint
 
     # 上期ROE (用于趋势判断，与当期保持同一口径)
-    # 上期ROE的期初权益无法从数据中获取，使用期末口径作为上期ROE近似
-    roe_prior = calc_roe(pi["归属于母公司股东的净利润"],
-                         pb["归属于母公司所有者权益合计"],
-                         pb["归属于母公司所有者权益合计"],
+    roe_prior = calc_roe(safe(pi, "归属于母公司股东的净利润"),
+                         safe(pb, "归属于母公司所有者权益合计"),
+                         safe(pb, "归属于母公司所有者权益合计"),
                          method="endpoint")
 
     # 毛利率
-    gm_current = calc_gross_margin(ci["营业收入"], ci["营业成本"])
-    gm_prior = calc_gross_margin(pi["营业收入"], pi["营业成本"])
+    gm_current = calc_gross_margin(safe(ci, "营业收入"), safe(ci, "营业成本"))
+    gm_prior = calc_gross_margin(safe(pi, "营业收入"), safe(pi, "营业成本"))
     gm_change = abs(gm_current - gm_prior)
 
     # 期间费用率 (四费)
     expr_current = calc_period_expense_ratio(
-        ci["销售费用"], ci["管理费用"], ci["研发费用"], ci["财务费用"], ci["营业收入"])
+        safe(ci, "销售费用"), safe(ci, "管理费用"), safe(ci, "研发费用"), safe(ci, "财务费用"), safe(ci, "营业收入"))
     expr_prior = calc_period_expense_ratio(
-        pi["销售费用"], pi["管理费用"], pi["研发费用"], pi["财务费用"], pi["营业收入"])
+        safe(pi, "销售费用"), safe(pi, "管理费用"), safe(pi, "研发费用"), safe(pi, "财务费用"), safe(pi, "营业收入"))
 
     # 资产负债率
-    debt_ratio = calc_debt_ratio(cb["负债合计"], cb["资产总计"])
+    debt_ratio = calc_debt_ratio(safe(cb, "负债合计"), safe(cb, "资产总计"))
 
     # 利息保障倍数
-    interest_coverage = calc_interest_coverage(ci["利润总额"], ci["其中_利息费用"])
+    interest_coverage = calc_interest_coverage(safe(ci, "利润总额"), safe(ci, "其中_利息费用"))
 
     # 流动比率
-    current_ratio = calc_current_ratio(cb["流动资产合计"], cb["流动负债合计"])
+    current_ratio = calc_current_ratio(safe(cb, "流动资产合计"), safe(cb, "流动负债合计"))
 
     # 货币资金/短期有息负债 (两种口径都算)
     cash_debt_narrow = calc_cash_to_short_debt(
-        cb["货币资金"], cb["短期借款"], cb["一年内到期的非流动负债"],
+        safe(cb, "货币资金"), safe(cb, "短期借款"), safe(cb, "一年内到期的非流动负债"),
         scope="narrow")
     cash_debt_wide = calc_cash_to_short_debt(
-        cb["货币资金"], cb["短期借款"], cb["一年内到期的非流动负债"],
-        cb["应付票据"], cb["交易性金融负债"],
+        safe(cb, "货币资金"), safe(cb, "短期借款"), safe(cb, "一年内到期的非流动负债"),
+        safe(cb, "应付票据"), safe(cb, "交易性金融负债"),
         scope="wide")
     cash_debt_selected = cash_debt_narrow if debt_scope == "narrow" else cash_debt_wide
 
     # 经营现金流/净利润
-    ocf_profit = calc_ocf_to_net_profit(cc["经营活动产生的现金流量净额"], ci["净利润"])
+    ocf_profit = calc_ocf_to_net_profit(safe(cc, "经营活动产生的现金流量净额"), safe(ci, "净利润"))
 
     # 自由现金流率
     fcf_ratio = calc_fcf_ratio(
-        cc["经营活动产生的现金流量净额"],
-        cc["购建固定资产_无形资产和其他长期资产支付的现金"],
-        ci["营业收入"])
+        safe(cc, "经营活动产生的现金流量净额"),
+        safe(cc, "购建固定资产_无形资产和其他长期资产支付的现金"),
+        safe(ci, "营业收入"))
 
     # 增速
-    rev_growth = calc_yoy_growth(ci["营业收入"], pi["营业收入"])
-    profit_growth = calc_yoy_growth(ci["归属于母公司股东的净利润"], pi["归属于母公司股东的净利润"])
-    ar_growth = calc_yoy_growth(cb["应收账款"], pb["应收账款"])
-    inv_growth = calc_yoy_growth(cb["存货"], pb["存货"])
+    rev_growth = calc_yoy_growth(safe(ci, "营业收入"), safe(pi, "营业收入"))
+    profit_growth = calc_yoy_growth(safe(ci, "归属于母公司股东的净利润"), safe(pi, "归属于母公司股东的净利润"))
+    ar_growth = calc_yoy_growth(safe(cb, "应收账款"), safe(pb, "应收账款"))
+    inv_growth = calc_yoy_growth(safe(cb, "存货"), safe(pb, "存货"))
 
     ar_minus_rev = ar_growth - rev_growth
     inv_minus_rev = inv_growth - rev_growth
@@ -473,10 +477,10 @@ def run_scoring(data: dict,
     scores = {}
 
     # 一、商业质量 (30分)
-    _eq_begin = pb["归属于母公司所有者权益合计"]
-    _eq_end = cb["归属于母公司所有者权益合计"]
+    _eq_begin = safe(pb, "归属于母公司所有者权益合计")
+    _eq_end = safe(cb, "归属于母公司所有者权益合计")
     _eq_avg = (_eq_begin + _eq_end) / 2
-    _np_parent = ci["归属于母公司股东的净利润"]
+    _np_parent = safe(ci, "归属于母公司股东的净利润")
 
     _roe_score, _roe_rule = score_roe(roe_selected)
     scores["ROE当期值"] = {
@@ -496,8 +500,8 @@ def run_scoring(data: dict,
         "thresholds": "≥20%→10分 | 15%-20%→8分 | 10%-15%→5分 | 5%-10%→2分 | <5%→0分"
     }
 
-    _rev = ci["营业收入"]
-    _cost = ci["营业成本"]
+    _rev = safe(ci, "营业收入")
+    _cost = safe(ci, "营业成本")
     _gm_score, _gm_rule = score_gross_margin(gm_current)
     scores["毛利率当期值"] = {
         "value": gm_current,
@@ -511,8 +515,8 @@ def run_scoring(data: dict,
         "thresholds": "≥40%→8分 | 25%-40%→6分 | 15%-25%→3分 | <15%→0分"
     }
 
-    _rev_p = pi["营业收入"]
-    _cost_p = pi["营业成本"]
+    _rev_p = safe(pi, "营业收入")
+    _cost_p = safe(pi, "营业成本")
     _gmc_score, _gmc_rule = score_gross_margin_change(gm_change)
     scores["毛利率同比变化绝对值"] = {
         "value": gm_change,
@@ -526,14 +530,14 @@ def run_scoring(data: dict,
         "thresholds": "≤5%→6分 | 5%-10%→3分 | >10%→0分"
     }
 
-    _sell = ci["销售费用"]
-    _admin = ci["管理费用"]
-    _rd = ci["研发费用"]
-    _fin = ci["财务费用"]
-    _sell_p = pi["销售费用"]
-    _admin_p = pi["管理费用"]
-    _rd_p = pi["研发费用"]
-    _fin_p = pi["财务费用"]
+    _sell = safe(ci, "销售费用")
+    _admin = safe(ci, "管理费用")
+    _rd = safe(ci, "研发费用")
+    _fin = safe(ci, "财务费用")
+    _sell_p = safe(pi, "销售费用")
+    _admin_p = safe(pi, "管理费用")
+    _rd_p = safe(pi, "研发费用")
+    _fin_p = safe(pi, "财务费用")
     _exp_score, _exp_rule = score_expense_trend(expr_current, expr_prior)
     scores["期间费用率同比趋势"] = {
         "value_current": expr_current,
@@ -551,8 +555,8 @@ def run_scoring(data: dict,
     }
 
     # 二、财务安全 (25分)
-    _liab = cb["负债合计"]
-    _asset = cb["资产总计"]
+    _liab = safe(cb, "负债合计")
+    _asset = safe(cb, "资产总计")
     _dr_score, _dr_rule = score_debt_ratio(debt_ratio)
     scores["资产负债率当期值"] = {
         "value": debt_ratio,
@@ -566,8 +570,8 @@ def run_scoring(data: dict,
         "thresholds": "<40%→8分 | 40%-60%→5分 | 60%-75%→2分 | >75%→0分"
     }
 
-    _pbt = ci["利润总额"]
-    _int = ci["其中_利息费用"]
+    _pbt = safe(ci, "利润总额")
+    _int = safe(ci, "其中_利息费用")
     _ebit = _pbt + _int
     _ic_score, _ic_rule = score_interest_coverage(interest_coverage)
     scores["利息保障倍数当期值"] = {
@@ -582,8 +586,8 @@ def run_scoring(data: dict,
         "thresholds": "≥8→7分 | 4-8→4分 | 1.5-4→2分 | <1.5→0分"
     }
 
-    _ca = cb["流动资产合计"]
-    _cl = cb["流动负债合计"]
+    _ca = safe(cb, "流动资产合计")
+    _cl = safe(cb, "流动负债合计")
     _cr_score, _cr_rule = score_current_ratio(current_ratio)
     scores["流动比率当期值"] = {
         "value": current_ratio,
@@ -597,11 +601,11 @@ def run_scoring(data: dict,
         "thresholds": "≥1.5→5分 | 1.0-1.5→3分 | <1.0→0分"
     }
 
-    _cash = cb["货币资金"]
-    _sb = cb["短期借款"]
-    _cnc = cb["一年内到期的非流动负债"]
-    _np_ = cb["应付票据"]
-    _tl = cb["交易性金融负债"]
+    _cash = safe(cb, "货币资金")
+    _sb = safe(cb, "短期借款")
+    _cnc = safe(cb, "一年内到期的非流动负债")
+    _np_ = safe(cb, "应付票据")
+    _tl = safe(cb, "交易性金融负债")
     _narrow_debt = _sb + _cnc
     _wide_debt = _narrow_debt + _np_ + _tl
     _cd_score, _cd_rule = score_cash_to_short_debt(cash_debt_selected)
@@ -622,8 +626,8 @@ def run_scoring(data: dict,
     }
 
     # 三、盈利质量与现金含量 (25分)
-    _ocf = cc["经营活动产生的现金流量净额"]
-    _np_total = ci["净利润"]
+    _ocf = safe(cc, "经营活动产生的现金流量净额")
+    _np_total = safe(ci, "净利润")
     _ocfp_score, _ocfp_rule = score_ocf_to_profit(ocf_profit)
     scores["经营现金流与净利润比"] = {
         "value": ocf_profit,
@@ -637,7 +641,7 @@ def run_scoring(data: dict,
         "thresholds": "≥1.0→10分 | 0.8-1.0→6分 | 0.6-0.8→3分 | <0.6→0分"
     }
 
-    _capex = cc["购建固定资产_无形资产和其他长期资产支付的现金"]
+    _capex = safe(cc, "购建固定资产_无形资产和其他长期资产支付的现金")
     _fcf = _ocf - _capex
     _fcf_score, _fcf_rule = score_fcf_ratio(fcf_ratio)
     scores["自由现金流率"] = {
@@ -652,8 +656,8 @@ def run_scoring(data: dict,
         "thresholds": "≥10%→6分 | 5%-10%→3分 | <5%→0分"
     }
 
-    _ar_cur = cb["应收账款"]
-    _ar_pri = pb["应收账款"]
+    _ar_cur = safe(cb, "应收账款")
+    _ar_pri = safe(pb, "应收账款")
     _ar_score, _ar_rule = score_ar_vs_revenue_growth(ar_minus_rev)
     scores["应收增速减营收增速"] = {
         "value": ar_minus_rev,
@@ -666,12 +670,12 @@ def run_scoring(data: dict,
         "description": "如果应收账款增速远高于营收增速，可能意味着公司通过放宽信用条件来拉动收入，回款风险增大。",
         "formula": "应收账款同比增速 - 营业收入同比增速",
         "detail": f"应收账款：{fmt(_ar_pri)} → {fmt(_ar_cur)}，增速 = {pct(ar_growth)}；"
-                  f"营业收入：{fmt(pi['营业收入'])} → {fmt(_rev)}，增速 = {pct(rev_growth)}；差值 = {pct(ar_minus_rev)}",
+                  f"营业收入：{fmt(safe(pi, '营业收入'))} → {fmt(_rev)}，增速 = {pct(rev_growth)}；差值 = {pct(ar_minus_rev)}",
         "thresholds": "≤0→5分 | 0-10%→3分 | 10%-20%→1分 | >20%→0分"
     }
 
-    _inv_cur = cb["存货"]
-    _inv_pri = pb["存货"]
+    _inv_cur = safe(cb, "存货")
+    _inv_pri = safe(pb, "存货")
     _inv_score, _inv_rule = score_inventory_vs_revenue_growth(inv_minus_rev)
     scores["存货增速减营收增速"] = {
         "value": inv_minus_rev,
@@ -698,12 +702,12 @@ def run_scoring(data: dict,
         "category": "成长质量",
         "description": "营业收入的同比增长率，反映公司业务规模的扩张速度。",
         "formula": "(本期营业收入 - 上期营业收入) / |上期营业收入|",
-        "detail": f"本期 = {fmt(_rev)}，上期 = {fmt(pi['营业收入'])}，增速 = {pct(rev_growth)}",
+        "detail": f"本期 = {fmt(_rev)}，上期 = {fmt(safe(pi, '营业收入'))}，增速 = {pct(rev_growth)}",
         "thresholds": "≥15%→7分 | 8%-15%→4分 | 0-8%→2分 | <0→0分"
     }
 
-    _np_cur = ci["归属于母公司股东的净利润"]
-    _np_pri = pi["归属于母公司股东的净利润"]
+    _np_cur = safe(ci, "归属于母公司股东的净利润")
+    _np_pri = safe(pi, "归属于母公司股东的净利润")
     _pg_score, _pg_rule = score_profit_growth(profit_growth)
     scores["净利润同比增速"] = {
         "value": profit_growth,
@@ -755,9 +759,9 @@ def run_scoring(data: dict,
     final_total, red_lines = apply_red_lines(
         raw_total,
         audit_opinion_clean,
-        ci["净利润"], pi["净利润"],
-        cc["经营活动产生的现金流量净额"],
-        pc["经营活动产生的现金流量净额"],
+        safe(ci, "净利润"), safe(pi, "净利润"),
+        safe(cc, "经营活动产生的现金流量净额"),
+        safe(pc, "经营活动产生的现金流量净额"),
         debt_ratio,
         interest_coverage
     )

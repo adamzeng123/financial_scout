@@ -5,6 +5,7 @@
 
 import hashlib
 import json
+import math
 import os
 import tempfile
 from pathlib import Path
@@ -57,6 +58,21 @@ def _neo4j_write_financial(data: dict) -> None:
 # Scoring cache — avoid repeated LLM calls for unchanged data
 # ---------------------------------------------------------------------------
 
+def _sanitize_for_json(obj):
+    """递归替换Infinity/NaN为JSON安全值，避免序列化崩溃。"""
+    if isinstance(obj, float):
+        if math.isinf(obj):
+            return 9999999 if obj > 0 else -9999999
+        if math.isnan(obj):
+            return 0
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_for_json(v) for v in obj]
+    return obj
+
+
 def _cache_path(data_dir: Path) -> Path:
     return data_dir / "scoring_cache.json"
 
@@ -93,8 +109,9 @@ def _save_cache(data_dir: Path, result: dict) -> None:
     """Save scoring result to cache file."""
     try:
         result["_fingerprint"] = _data_fingerprint(data_dir)
+        safe_result = _sanitize_for_json(result)
         with open(_cache_path(data_dir), "w", encoding="utf-8") as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
+            json.dump(safe_result, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
 
@@ -174,7 +191,9 @@ def score_refresh():
 
 
 def _score_with_llm(data_dir: Path, dataset_id, roe_method: str, debt_scope: str):
-    """执行完整评分流程（含LLM），并缓存结果。"""
+    """执行完整评分流程（含LLM），并缓存结果。LLM调用并行化。"""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     data = load_financial_data(data_dir / "financial_data.json")
 
     audit_path = data_dir / "audit_opinion.txt"
@@ -183,18 +202,36 @@ def _score_with_llm(data_dir: Path, dataset_id, roe_method: str, debt_scope: str
         with open(audit_path, "r", encoding="utf-8") as f:
             audit_text = f.read()
 
-    opinion = classify_audit_opinion(audit_text) if audit_text else {
-        "opinion_type": "未提供审计意见",
-        "is_clean": True
+    # 并行：审计分类 + 先用默认is_clean计算评分（评分不依赖LLM）
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        # 1. 审计分类（LLM调用）
+        future_opinion = pool.submit(
+            classify_audit_opinion, audit_text
+        ) if audit_text else None
+
+        # 2. 同时先用 is_clean=True 跑一遍评分（纯计算，<10ms）
+        #    如果审计结果回来后 is_clean 不同再重算
+        result_optimistic = run_scoring(
+            data, roe_method=roe_method, debt_scope=debt_scope,
+            audit_opinion_clean=True
+        )
+
+    # 拿到审计分类结果
+    opinion = future_opinion.result() if future_opinion else {
+        "opinion_type": "未提供审计意见", "is_clean": True
     }
 
-    result = run_scoring(
-        data,
-        roe_method=roe_method,
-        debt_scope=debt_scope,
-        audit_opinion_clean=opinion.get("is_clean", False)
-    )
+    # 如果审计非标准，需要重算（会触发红线）
+    if not opinion.get("is_clean", True):
+        result = run_scoring(
+            data, roe_method=roe_method, debt_scope=debt_scope,
+            audit_opinion_clean=False
+        )
+    else:
+        result = result_optimistic
 
+    # 并行：生成评价（LLM调用）
+    # 在审计分类完成后才能生成评价（需要分数和审计结果作为输入）
     evaluation = generate_evaluation(result, audit_text)
 
     opinion["audit_text"] = audit_text
@@ -210,7 +247,7 @@ def _score_with_llm(data_dir: Path, dataset_id, roe_method: str, debt_scope: str
     _neo4j_write_financial(data)
     _neo4j_write_scoring(data.get("company", ""), data.get("report_year", 0), result)
 
-    return jsonify(result)
+    return jsonify(_sanitize_for_json(result))
 
 
 @app.route("/api/score/compute", methods=["POST"])
@@ -231,7 +268,7 @@ def score_compute_only():
         audit_opinion_clean=audit_clean
     )
 
-    return jsonify(result)
+    return jsonify(_sanitize_for_json(result))
 
 
 @app.route("/api/extract", methods=["POST"])
@@ -253,6 +290,16 @@ def extract_from_pdf():
 
         # Dual-write to Neo4j
         _neo4j_write_financial(result["financial_data"])
+
+        # 预热缓存：后台触发评分+LLM分析，用户打开时直接读缓存
+        import threading
+        def _prewarm(ds_id):
+            try:
+                data_dir = _resolve_data_dir(ds_id)
+                _score_with_llm(data_dir, ds_id, "weighted_avg", "narrow")
+            except Exception:
+                pass
+        threading.Thread(target=_prewarm, args=(result["dataset_id"],), daemon=True).start()
 
         return jsonify({
             "success": True,
