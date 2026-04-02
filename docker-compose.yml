@@ -1,0 +1,62 @@
+services:
+  # ---------- Neo4j ----------
+  neo4j:
+    image: neo4j:5-community
+    container_name: financial-scout-neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/financial_scout
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - neo4j_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "financial_scout", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------- Backend (Flask + hot reload) ----------
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: financial-scout-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_DEBUG=1
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=financial_scout
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      # Mount source code for hot reload — edit locally, Flask auto-restarts
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./ontology:/app/ontology
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------- Frontend (Vite + HMR) ----------
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: financial-scout-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      # Mount source code for HMR — edit locally, browser auto-updates
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/public:/app/public
+      # Don't mount node_modules (use container's)
+    restart: unless-stopped
+
+volumes:
+  neo4j_data:

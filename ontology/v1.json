@@ -1,0 +1,345 @@
+{
+  "version": 1,
+  "created_at": "2026-04-02T00:00:00Z",
+  "author": "system",
+  "description": "初始版本：覆盖财报侦察官全部25个字段，含中英繁体别名",
+  "terms": {
+    "cash_and_equivalents": {
+      "canonical": "货币资金",
+      "field_key": "货币资金",
+      "source_table": "balance_sheet",
+      "aliases": {
+        "zh_CN": ["货币资金", "现金及现金等价物", "库存现金"],
+        "zh_TW": ["貨幣資金", "現金及約當現金"],
+        "en": ["Cash and cash equivalents", "Cash", "Monetary funds"]
+      },
+      "definition": "企业持有的现金、银行存款及可随时变现的短期投资，是流动性最强的资产。",
+      "related_to": ["current_assets"],
+      "gaap": {"CAS": "《企业会计准则第30号——财务报表列报》", "IFRS": "IAS 7"}
+    },
+    "accounts_receivable": {
+      "canonical": "应收账款",
+      "field_key": "应收账款",
+      "source_table": "balance_sheet",
+      "aliases": {
+        "zh_CN": ["应收账款", "应收帐款", "应收款项"],
+        "zh_TW": ["應收帳款", "應收款項"],
+        "en": ["Accounts receivable", "Trade receivables", "A/R"]
+      },
+      "definition": "企业因销售商品、提供服务等经营活动应收取的款项，反映信用销售规模。",
+      "related_to": ["revenue"],
+      "gaap": {"CAS": "《企业会计准则第22号——金融工具确认和计量》", "IFRS": "IFRS 9"}
+    },
+    "inventory": {
+      "canonical": "存货",
+      "field_key": "存货",
+      "source_table": "balance_sheet",
+      "aliases": {
+        "zh_CN": ["存货", "库存"],
+        "zh_TW": ["存貨", "庫存"],
+        "en": ["Inventory", "Inventories", "Stock"]
+      },
+      "definition": "企业在日常活动中持有以备出售的产成品、在产品、原材料等。",
+      "related_to": ["cost_of_revenue"],
+      "gaap": {"CAS": "《企业会计准则第1号——存货》", "IFRS": "IAS 2"}
+    },
+    "current_assets": {
+      "canonical": "流动资产合计",
+      "field_key": "流动资产合计",
+      "source_table": "balance_sheet",
+      "aliases": {
+        "zh_CN": ["流动资产合计", "流动资产总额", "流动资产总计"],
+        "zh_TW": ["流動資產合計", "流動資產總額"],
+        "en": ["Total current assets", "Current assets"]
+      },
+      "definition": "企业预计在一个正常营业周期内或一年内变现、出售或耗用的资产总额。",
+      "related_to": ["cash_and_equivalents", "accounts_receivable", "inventory"],
+      "gaap": {"CAS": "《企业会计准则第30号——财务报表列报》", "IFRS": "IAS 1"}
+    },
+    "total_assets": {
+      "canonical": "资产总计",
+      "field_key": "资产总计",
+      "source_table": "balance_sheet",
+      "aliases": {
+        "zh_CN": ["资产总计", "资产合计", "资产总额"],
+        "zh_TW": ["資產總計", "資產合計", "資產總額"],
+        "en": ["Total assets"]
+      },
+      "definition": "企业所拥有或控制的全部经济资源的总额，是企业规模的核心度量。",
+      "related_to": ["current_assets", "total_liabilities", "equity_parent"],
+      "gaap": {"CAS": "《企业会计准则第30号——财务报表列报》", "IFRS": "IAS 1"}
+    },
+    "short_term_borrowings": {
+      "canonical": "短期借款",
+      "field_key": "短期借款",
+      "source_table": "balance_sheet",
+      "aliases": {
+        "zh_CN": ["短期借款", "短期银行借款"],
+        "zh_TW": ["短期借款", "短期借入款項"],
+        "en": ["Short-term borrowings", "Short-term loans", "Short-term bank loans"]
+      },
+      "definition": "企业向银行或其他金融机构借入的期限在一年以内的各种借款。",
+      "related_to": ["current_non_current_liabilities"],
+      "gaap": {"CAS": "《企业会计准则第22号——金融工具确认和计量》", "IFRS": "IFRS 9"}
+    },
+    "notes_payable": {
+      "canonical": "应付票据",
+      "field_key": "应付票据",
+      "source_table": "balance_sheet",
+      "aliases": {
+        "zh_CN": ["应付票据", "应付商业票据"],
+        "zh_TW": ["應付票據"],
+        "en": ["Notes payable", "Bills payable"]
+      },
+      "definition": "企业因购买材料、商品或接受服务等而开出的商业汇票。",
+      "related_to": ["current_liabilities"],
+      "gaap": {"CAS": "《企业会计准则第22号——金融工具确认和计量》", "IFRS": "IFRS 9"}
+    },
+    "trading_liabilities": {
+      "canonical": "交易性金融负债",
+      "field_key": "交易性金融负债",
+      "source_table": "balance_sheet",
+      "aliases": {
+        "zh_CN": ["交易性金融负债", "以公允价值计量且其变动计入当期损益的金融负债"],
+        "zh_TW": ["交易性金融負債", "透過損益按公允價值衡量之金融負債"],
+        "en": ["Trading financial liabilities", "Financial liabilities at FVTPL"]
+      },
+      "definition": "企业以交易为目的持有的金融负债，按公允价值计量。",
+      "related_to": [],
+      "gaap": {"CAS": "《企业会计准则第22号——金融工具确认和计量》", "IFRS": "IFRS 9"}
+    },
+    "current_non_current_liabilities": {
+      "canonical": "一年内到期的非流动负债",
+      "field_key": "一年内到期的非流动负债",
+      "source_table": "balance_sheet",
+      "aliases": {
+        "zh_CN": ["一年内到期的非流动负债", "一年内到期非流动负债"],
+        "zh_TW": ["一年內到期之非流動負債"],
+        "en": ["Non-current liabilities due within one year", "Current portion of long-term debt"]
+      },
+      "definition": "将在一年内到期偿还的长期负债部分，需要短期资金安排。",
+      "related_to": ["short_term_borrowings"],
+      "gaap": {"CAS": "《企业会计准则第30号——财务报表列报》", "IFRS": "IAS 1"}
+    },
+    "current_liabilities": {
+      "canonical": "流动负债合计",
+      "field_key": "流动负债合计",
+      "source_table": "balance_sheet",
+      "aliases": {
+        "zh_CN": ["流动负债合计", "流动负债总额", "流动负债总计"],
+        "zh_TW": ["流動負債合計", "流動負債總額"],
+        "en": ["Total current liabilities", "Current liabilities"]
+      },
+      "definition": "企业预计在一个正常营业周期内或一年内需要偿还的全部债务。",
+      "related_to": ["short_term_borrowings", "notes_payable", "current_non_current_liabilities"],
+      "gaap": {"CAS": "《企业会计准则第30号——财务报表列报》", "IFRS": "IAS 1"}
+    },
+    "total_liabilities": {
+      "canonical": "负债合计",
+      "field_key": "负债合计",
+      "source_table": "balance_sheet",
+      "aliases": {
+        "zh_CN": ["负债合计", "负债总计", "负债总额"],
+        "zh_TW": ["負債合計", "負債總計", "負債總額"],
+        "en": ["Total liabilities"]
+      },
+      "definition": "企业承担的全部债务总额，包括流动负债和非流动负债。",
+      "related_to": ["current_liabilities", "total_assets"],
+      "gaap": {"CAS": "《企业会计准则第30号——财务报表列报》", "IFRS": "IAS 1"}
+    },
+    "equity_parent": {
+      "canonical": "归属于母公司所有者权益合计",
+      "field_key": "归属于母公司所有者权益合计",
+      "source_table": "balance_sheet",
+      "aliases": {
+        "zh_CN": ["归属于母公司所有者权益合计", "归属于母公司股东权益合计", "归母权益"],
+        "zh_TW": ["歸屬於母公司業主之權益", "歸屬母公司股東權益"],
+        "en": ["Equity attributable to parent", "Equity attributable to shareholders of the parent"]
+      },
+      "definition": "扣除少数股东权益后，属于母公司股东的净资产总额，是ROE的分母。",
+      "related_to": ["total_assets", "total_liabilities", "net_profit_parent"],
+      "gaap": {"CAS": "《企业会计准则第30号——财务报表列报》", "IFRS": "IAS 1"}
+    },
+    "revenue": {
+      "canonical": "营业收入",
+      "field_key": "营业收入",
+      "source_table": "income_statement",
+      "aliases": {
+        "zh_CN": ["营业收入", "主营业务收入", "营业总收入"],
+        "zh_TW": ["營業收入", "營收淨額", "銷貨收入"],
+        "en": ["Revenue", "Net sales", "Net revenue", "Operating revenue"]
+      },
+      "definition": "企业在日常经营活动中形成的经济利益总流入，是衡量企业规模和成长性的核心指标。",
+      "related_to": ["cost_of_revenue", "gross_profit"],
+      "gaap": {"CAS": "《企业会计准则第14号——收入》", "IFRS": "IFRS 15"}
+    },
+    "cost_of_revenue": {
+      "canonical": "营业成本",
+      "field_key": "营业成本",
+      "source_table": "income_statement",
+      "aliases": {
+        "zh_CN": ["营业成本", "主营业务成本", "销售成本"],
+        "zh_TW": ["營業成本", "銷貨成本"],
+        "en": ["Cost of revenue", "Cost of sales", "COGS", "Cost of goods sold"]
+      },
+      "definition": "企业为取得营业收入而发生的直接成本，与营业收入配比后得出毛利。",
+      "related_to": ["revenue", "gross_profit"],
+      "gaap": {"CAS": "《企业会计准则第1号——存货》", "IFRS": "IAS 2"}
+    },
+    "selling_expenses": {
+      "canonical": "销售费用",
+      "field_key": "销售费用",
+      "source_table": "income_statement",
+      "aliases": {
+        "zh_CN": ["销售费用", "营销费用", "推销费用"],
+        "zh_TW": ["推銷費用", "銷售費用", "營銷費用"],
+        "en": ["Selling expenses", "Distribution costs", "Marketing expenses"]
+      },
+      "definition": "企业在销售商品和提供服务过程中发生的各种费用。",
+      "related_to": ["admin_expenses", "rd_expenses", "finance_expenses"],
+      "gaap": {"CAS": "《企业会计准则第30号——财务报表列报》", "IFRS": "IAS 1"}
+    },
+    "admin_expenses": {
+      "canonical": "管理费用",
+      "field_key": "管理费用",
+      "source_table": "income_statement",
+      "aliases": {
+        "zh_CN": ["管理费用", "行政费用"],
+        "zh_TW": ["管理費用", "行政費用"],
+        "en": ["Administrative expenses", "General and administrative expenses", "G&A"]
+      },
+      "definition": "企业为组织和管理生产经营活动而发生的各种费用。",
+      "related_to": ["selling_expenses", "rd_expenses", "finance_expenses"],
+      "gaap": {"CAS": "《企业会计准则第30号——财务报表列报》", "IFRS": "IAS 1"}
+    },
+    "rd_expenses": {
+      "canonical": "研发费用",
+      "field_key": "研发费用",
+      "source_table": "income_statement",
+      "aliases": {
+        "zh_CN": ["研发费用", "研究开发费用", "研究与开发费用"],
+        "zh_TW": ["研發費用", "研究發展費用"],
+        "en": ["R&D expenses", "Research and development expenses"]
+      },
+      "definition": "企业进行研究与开发活动发生的费用化支出，2018年后从管理费用中独立列示。",
+      "related_to": ["selling_expenses", "admin_expenses", "finance_expenses"],
+      "gaap": {"CAS": "《企业会计准则第6号——无形资产》", "IFRS": "IAS 38"}
+    },
+    "finance_expenses": {
+      "canonical": "财务费用",
+      "field_key": "财务费用",
+      "source_table": "income_statement",
+      "aliases": {
+        "zh_CN": ["财务费用", "财务成本"],
+        "zh_TW": ["財務費用", "財務成本"],
+        "en": ["Finance costs", "Financial expenses", "Interest and finance costs"]
+      },
+      "definition": "企业为筹集资金而发生的各种费用，包括利息支出、汇兑损失等。",
+      "related_to": ["interest_expense"],
+      "gaap": {"CAS": "《企业会计准则第17号——借款费用》", "IFRS": "IAS 23"}
+    },
+    "interest_expense": {
+      "canonical": "其中_利息费用",
+      "field_key": "其中_利息费用",
+      "source_table": "income_statement",
+      "aliases": {
+        "zh_CN": ["其中：利息费用", "利息费用", "利息支出", "其中_利息费用"],
+        "zh_TW": ["利息費用", "利息支出"],
+        "en": ["Interest expense", "Interest costs"]
+      },
+      "definition": "企业因借款而支付的利息，是财务费用的主要组成部分，用于计算利息保障倍数。",
+      "related_to": ["finance_expenses", "profit_before_tax"],
+      "gaap": {"CAS": "《企业会计准则第17号——借款费用》", "IFRS": "IAS 23"}
+    },
+    "profit_before_tax": {
+      "canonical": "利润总额",
+      "field_key": "利润总额",
+      "source_table": "income_statement",
+      "aliases": {
+        "zh_CN": ["利润总额", "税前利润"],
+        "zh_TW": ["稅前淨利", "繼續營業單位稅前淨利"],
+        "en": ["Profit before tax", "Pre-tax profit", "EBT"]
+      },
+      "definition": "企业在缴纳所得税之前的利润总额，加上利息费用即为息税前利润(EBIT)。",
+      "related_to": ["interest_expense", "income_tax", "net_profit"],
+      "gaap": {"CAS": "《企业会计准则第30号——财务报表列报》", "IFRS": "IAS 1"}
+    },
+    "income_tax": {
+      "canonical": "所得税费用",
+      "field_key": "所得税费用",
+      "source_table": "income_statement",
+      "aliases": {
+        "zh_CN": ["所得税费用", "所得税"],
+        "zh_TW": ["所得稅費用", "所得稅"],
+        "en": ["Income tax expense", "Tax expense"]
+      },
+      "definition": "企业按税法规定计算的当期应交所得税及递延所得税之和。",
+      "related_to": ["profit_before_tax", "net_profit"],
+      "gaap": {"CAS": "《企业会计准则第18号——所得税》", "IFRS": "IAS 12"}
+    },
+    "net_profit": {
+      "canonical": "净利润",
+      "field_key": "净利润",
+      "source_table": "income_statement",
+      "aliases": {
+        "zh_CN": ["净利润", "本期净利润"],
+        "zh_TW": ["本期淨利", "淨利"],
+        "en": ["Net profit", "Net income", "Net earnings"]
+      },
+      "definition": "企业在一定期间内的经营成果，等于利润总额减去所得税费用。",
+      "related_to": ["profit_before_tax", "income_tax", "net_profit_parent"],
+      "gaap": {"CAS": "《企业会计准则第30号——财务报表列报》", "IFRS": "IAS 1"}
+    },
+    "net_profit_parent": {
+      "canonical": "归属于母公司股东的净利润",
+      "field_key": "归属于母公司股东的净利润",
+      "source_table": "income_statement",
+      "aliases": {
+        "zh_CN": ["归属于母公司股东的净利润", "归属于母公司所有者的净利润", "归母净利润"],
+        "zh_TW": ["本期淨利歸屬於母公司業主", "歸屬母公司淨利"],
+        "en": ["Net profit attributable to parent", "Net income attributable to shareholders of the parent"]
+      },
+      "definition": "扣除少数股东损益后，归属于母公司股东的净利润，是计算ROE的分子。",
+      "related_to": ["net_profit", "equity_parent"],
+      "formula": "net_profit - minority_interest",
+      "gaap": {"CAS": "《企业会计准则第30号——财务报表列报》", "IFRS": "IAS 1"}
+    },
+    "operating_cash_flow": {
+      "canonical": "经营活动产生的现金流量净额",
+      "field_key": "经营活动产生的现金流量净额",
+      "source_table": "cash_flow",
+      "aliases": {
+        "zh_CN": ["经营活动产生的现金流量净额", "经营现金流净额", "经营活动现金流量净额"],
+        "zh_TW": ["營業活動之淨現金流入", "營業活動淨現金流量"],
+        "en": ["Net cash from operating activities", "Operating cash flow", "CFO"]
+      },
+      "definition": "企业经营活动（非投资和筹资）产生的现金流入与流出的净差额，衡量利润的含金量。",
+      "related_to": ["net_profit", "capex"],
+      "gaap": {"CAS": "《企业会计准则第31号——现金流量表》", "IFRS": "IAS 7"}
+    },
+    "capex": {
+      "canonical": "购建固定资产_无形资产和其他长期资产支付的现金",
+      "field_key": "购建固定资产_无形资产和其他长期资产支付的现金",
+      "source_table": "cash_flow",
+      "aliases": {
+        "zh_CN": ["购建固定资产、无形资产和其他长期资产支付的现金", "购建固定资产无形资产和其他长期资产支付的现金", "资本性支出"],
+        "zh_TW": ["取得不動產廠房及設備", "購置固定資產支付之現金"],
+        "en": ["Capital expenditure", "CAPEX", "Purchase of property, plant and equipment"]
+      },
+      "definition": "企业为购建固定资产、无形资产等长期资产支付的现金，从经营现金流中扣除后得到自由现金流。",
+      "related_to": ["operating_cash_flow"],
+      "gaap": {"CAS": "《企业会计准则第31号——现金流量表》", "IFRS": "IAS 7"}
+    }
+  },
+  "relationships": [
+    {"from": "gross_profit", "to": "revenue", "type": "derived_from", "formula": "revenue - cost_of_revenue", "description": "毛利 = 营业收入 - 营业成本"},
+    {"from": "ebit", "to": "profit_before_tax", "type": "derived_from", "formula": "profit_before_tax + interest_expense", "description": "息税前利润 = 利润总额 + 利息费用"},
+    {"from": "net_profit", "to": "profit_before_tax", "type": "derived_from", "formula": "profit_before_tax - income_tax", "description": "净利润 = 利润总额 - 所得税费用"},
+    {"from": "free_cash_flow", "to": "operating_cash_flow", "type": "derived_from", "formula": "operating_cash_flow - capex", "description": "自由现金流 = 经营现金流净额 - 资本性支出"},
+    {"from": "roe", "to": "net_profit_parent", "type": "derived_from", "formula": "net_profit_parent / avg(equity_parent)", "description": "ROE = 归母净利润 / 平均归母权益"},
+    {"from": "debt_ratio", "to": "total_liabilities", "type": "derived_from", "formula": "total_liabilities / total_assets", "description": "资产负债率 = 负债合计 / 资产总计"},
+    {"from": "current_ratio", "to": "current_assets", "type": "derived_from", "formula": "current_assets / current_liabilities", "description": "流动比率 = 流动资产合计 / 流动负债合计"},
+    {"from": "interest_coverage", "to": "ebit", "type": "derived_from", "formula": "ebit / interest_expense", "description": "利息保障倍数 = EBIT / 利息费用"},
+    {"from": "period_expense_ratio", "to": "selling_expenses", "type": "derived_from", "formula": "(selling + admin + rd + finance) / revenue", "description": "期间费用率 = 四费合计 / 营业收入"}
+  ]
+}

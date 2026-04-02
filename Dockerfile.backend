@@ -1,0 +1,17 @@
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+
+WORKDIR /app
+
+# Install dependencies first (cache layer)
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+# Copy source (will be overridden by volume mount in dev)
+COPY src/ src/
+COPY data/ data/
+COPY ontology/ ontology/
+
+EXPOSE 5000
+
+# Flask debug mode enables hot reload on file changes
+CMD ["uv", "run", "python", "src/app.py"]

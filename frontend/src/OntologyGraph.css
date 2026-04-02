@@ -1,0 +1,139 @@
+.ontology-graph {
+  position: relative;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  overflow: hidden;
+  min-height: 500px;
+  height: 600px;
+}
+
+.ontology-graph svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Legend */
+.graph-legend {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.92);
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  z-index: 10;
+  font-size: 12px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #374151;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.legend-line {
+  display: inline-block;
+  width: 20px;
+  height: 0;
+  border-top: 2px solid #8b5cf6;
+}
+
+.legend-line.dashed {
+  border-top-style: dashed;
+  border-color: #9ca3af;
+}
+
+.legend-line.solid {
+  border-top-style: solid;
+}
+
+/* Tooltip */
+.graph-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  z-index: 20;
+  max-width: 280px;
+}
+
+.tooltip-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 2px;
+}
+
+.tooltip-id {
+  font-size: 11px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: #4f46e5;
+  margin-bottom: 6px;
+}
+
+.tooltip-def {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #666;
+  margin-bottom: 6px;
+}
+
+.tooltip-field {
+  font-size: 11px;
+  color: #999;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.tooltip-hint {
+  font-size: 10px;
+  color: #4f46e5;
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+/* Graph tab controls */
+.graph-tab-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 3px;
+  background: #f3f4f6;
+  border-radius: 8px;
+  width: fit-content;
+}
+
+.graph-tab-bar button {
+  padding: 6px 16px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
+  transition: all 0.15s;
+}
+
+.graph-tab-bar button:hover { color: #374151; }
+
+.graph-tab-bar button.active {
+  background: white;
+  color: #4f46e5;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
