@@ -9,7 +9,10 @@ import math
 import os
 import tempfile
 from pathlib import Path
+from dotenv import load_dotenv
 from flask import Flask, jsonify, request
+
+load_dotenv(Path(__file__).parent.parent / ".env")
 from flask_cors import CORS
 from scorer import load_financial_data, run_scoring
 from llm_client import classify_audit_opinion, generate_evaluation

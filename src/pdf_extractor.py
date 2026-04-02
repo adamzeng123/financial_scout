@@ -126,51 +126,62 @@ def _is_data_page(text: str) -> bool:
     return len(numbers) >= 3
 
 
-def _load_statement_keywords() -> dict[str, list[str]]:
-    """
-    从ontology加载各报表的搜索关键词。
-    每个source_table的所有term的aliases都可以作为页面定位的线索。
-    同时包含报表标题级别的关键词。
-    """
-    # 报表标题级关键词（用于书签和页面标题匹配）
-    defaults = {
-        "balance_sheet": [
-            "合并资产负债表", "合并及母公司资产负债表", "合并及公司资产负债表",
-            "合併資產負債表", "Consolidated Balance Sheet",
-        ],
-        "income_statement": [
-            "合并利润表", "合并及母公司利润表", "合并及公司利润表",
-            "合併損益表", "合併綜合損益表", "Consolidated Income Statement",
-        ],
-        "cash_flow": [
-            "合并现金流量表", "合并及母公司现金流量表", "合并及公司现金流量表",
-            "合併現金流量表", "Consolidated Cash Flow Statement",
-        ],
-        "audit_opinion": [
-            "审计意见类型", "审计报告", "审计意见", "審計報告", "Audit Report",
-        ],
-    }
+TITLE_KEYWORDS = {
+    "balance_sheet": [
+        "合并资产负债表", "合并及母公司资产负债表", "合并及公司资产负债表",
+        "合併資產負債表", "Consolidated Balance Sheet",
+    ],
+    "income_statement": [
+        "合并利润表", "合并及母公司利润表", "合并及公司利润表",
+        "合併損益表", "合併綜合損益表", "Consolidated Income Statement",
+    ],
+    "cash_flow": [
+        "合并现金流量表", "合并及母公司现金流量表", "合并及公司现金流量表",
+        "合併現金流量表", "Consolidated Cash Flow Statement",
+    ],
+    "audit_opinion": [
+        "审计意见类型", "审计报告", "审计意见", "審計報告", "Audit Report",
+    ],
+}
 
-    # 从ontology补充：每张报表中的首个核心字段名作为数据锚点
+
+def _load_ontology_term_map() -> dict[str, list[tuple[str, list[str]]]]:
+    """
+    从ontology加载 {source_table: [(term_id, [全部别名]), ...]} 映射。
+    用于策略3的页面覆盖度评分：统计页面包含了多少个该报表的不同术语。
+    """
+    term_map: dict[str, list[tuple[str, list[str]]]] = {
+        "balance_sheet": [], "income_statement": [], "cash_flow": []
+    }
     try:
         import ontology_service
         data = ontology_service.load_current()
-        # 每张报表取前2个term的所有aliases作为数据锚点
-        table_anchors = {"balance_sheet": [], "income_statement": [], "cash_flow": []}
-        count = {"balance_sheet": 0, "income_statement": 0, "cash_flow": 0}
-        for t in data.get("terms", {}).values():
+        for term_id, t in data.get("terms", {}).items():
             table = t.get("source_table", "")
-            if table in table_anchors and count[table] < 2:
-                for aliases in t.get("aliases", {}).values():
-                    table_anchors[table].extend(aliases)
-                count[table] += 1
-        for table, anchors in table_anchors.items():
-            if anchors:
-                defaults[table] = defaults[table] + anchors
+            if table not in term_map:
+                continue
+            all_aliases: list[str] = []
+            for lang_aliases in t.get("aliases", {}).values():
+                all_aliases.extend(lang_aliases)
+            if all_aliases:
+                term_map[table].append((term_id, list(dict.fromkeys(all_aliases))))
     except Exception:
         pass
+    return term_map
 
-    return defaults
+
+def _score_page(text: str,
+                term_map: dict[str, list[tuple[str, list[str]]]]) -> dict[str, int]:
+    """
+    对一个页面按各报表的ontology术语覆盖度打分。
+    每命中一个不同的term_id计1分（同一term的多个别名只算一次）。
+    返回 {source_table: 命中term数}。
+    """
+    scores: dict[str, int] = {}
+    for table, terms in term_map.items():
+        hit = sum(1 for _, aliases in terms if any(a in text for a in aliases))
+        scores[table] = hit
+    return scores
 
 
 def build_page_index(pdf_path: str | Path) -> dict:
@@ -187,30 +198,11 @@ def build_page_index(pdf_path: str | Path) -> dict:
     doc = fitz.open(str(pdf_path))
     toc = doc.get_toc()
     index = {}
-    all_keywords = _load_statement_keywords()
+    term_map = _load_ontology_term_map()
 
-    # 书签匹配只用报表标题级关键词（不用ontology term aliases）
-    bookmark_keywords = {
-        "balance_sheet": [
-            "合并资产负债表", "合并及母公司资产负债表", "合并及公司资产负债表",
-            "合併資產負債表", "Consolidated Balance Sheet",
-        ],
-        "income_statement": [
-            "合并利润表", "合并及母公司利润表", "合并及公司利润表",
-            "合併損益表", "合併綜合損益表", "Consolidated Income Statement",
-        ],
-        "cash_flow": [
-            "合并现金流量表", "合并及母公司现金流量表", "合并及公司现金流量表",
-            "合併現金流量表", "Consolidated Cash Flow Statement",
-        ],
-        "audit_opinion": [
-            "审计报告", "審計報告", "Audit Report",
-        ],
-    }
-
-    # --- 策略1：PDF书签（只匹配报表标题） ---
+    # --- 策略1：PDF书签（只匹配报表标题关键词） ---
     if toc:
-        for stmt_type, patterns in bookmark_keywords.items():
+        for stmt_type, patterns in TITLE_KEYWORDS.items():
             for _, title, page in toc:
                 title_clean = title.strip()
                 for pat in patterns:
@@ -288,36 +280,56 @@ def build_page_index(pdf_path: str | Path) -> dict:
         except Exception:
             pass
 
-    # --- 策略3：关键词扫描（ontology驱动） ---
-    # 从LLM章节入口附近开始扫描（跳过目录、概况等前半部分）
+    # --- 策略3：ontology术语覆盖度评分 ---
+    # 对扫描范围内每个页面，统计各报表的ontology术语命中数，取最高分页面。
+    # 用标题关键词做快速锁定（优先），再用术语评分兜底。
     llm_hint = index.pop("_llm_hint", 0)
     if not llm_hint:
         llm_hint = min((v for v in index.values() if isinstance(v, int)), default=0)
     scan_start = max(0, llm_hint - 2) if llm_hint > 0 else 0  # 0-indexed
 
-    for stmt_type, kws in all_keywords.items():
-        if stmt_type in index and len(set(index.get(k) for k in ["balance_sheet", "income_statement", "cash_flow"] if k in index)) >= 2:
-            continue  # 这个报表已有可靠定位
+    # 快速路径：标题关键词在页面开头 → 直接锁定（优先级最高）
+    for stmt_type, title_kws in TITLE_KEYWORDS.items():
+        if stmt_type in index:
+            continue
         for i in range(scan_start, doc.page_count):
             text = doc[i].get_text()
-            for kw in kws:
+            is_audit = "审计报告" in text[:100] or "审计意见" in text[:200]
+            for kw in title_kws:
                 pos = text.find(kw)
                 if pos < 0:
                     continue
-                is_audit = "审计报告" in text[:100] or "审计意见" in text[:200]
-                # 标题位置（前200字符）+ 有数字 + 不是审计报告页
                 if pos < 200 and _is_data_page(text) and not is_audit:
                     index[stmt_type] = i + 1  # 1-indexed
                     break
-                # 关键词在页面末尾 → 标题跨页
+                # 标题在页面末尾 → 数据在下一页
                 if pos > len(text) * 0.7 and (i + 1) < doc.page_count:
                     index[stmt_type] = i + 2  # 下一页，1-indexed
                     break
             if stmt_type in index:
                 break
 
+    # 评分路径：对还未定位的报表，按ontology术语覆盖度选最佳页面
+    missing = [t for t in ["balance_sheet", "income_statement", "cash_flow"] if t not in index]
+    if missing and term_map:
+        best: dict[str, tuple[int, int]] = {}  # stmt_type -> (score, page_1indexed)
+        for i in range(scan_start, doc.page_count):
+            text = doc[i].get_text()
+            is_audit = "审计报告" in text[:100] or "审计意见" in text[:200]
+            if is_audit or not _is_data_page(text):
+                continue
+            scores = _score_page(text, term_map)
+            for stmt_type in missing:
+                s = scores.get(stmt_type, 0)
+                if s > best.get(stmt_type, (0, 0))[0]:
+                    best[stmt_type] = (s, i + 1)
+        # 只采用得分 >= 3 的结果（至少命中3个不同术语，避免概述页误判）
+        for stmt_type, (score, page) in best.items():
+            if score >= 3:
+                index[stmt_type] = page
+
     if index:
-        index["method"] = "keyword_scan"
+        index["method"] = "ontology_scan"
 
     doc.close()
     return index

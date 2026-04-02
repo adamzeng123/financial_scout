@@ -18,6 +18,21 @@ services:
       timeout: 5s
       retries: 5
 
+  # ---------- Neo4j 期初初始化（仅首次或重建时执行一次）----------
+  neo4j-init:
+    image: neo4j:5-community
+    container_name: financial-scout-neo4j-init
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    volumes:
+      - ./scripts:/scripts:ro
+    entrypoint: >
+      cypher-shell -a bolt://neo4j:7687
+                   -u neo4j -p financial_scout
+                   -f /scripts/neo4j_init.cypher
+    restart: no
+
   # ---------- Backend (Flask + hot reload) ----------
   backend:
     build:
