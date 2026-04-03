@@ -299,7 +299,9 @@ def build_page_index(pdf_path: str | Path) -> dict:
                 pos = text.find(kw)
                 if pos < 0:
                     continue
-                if pos < 200 and _is_data_page(text) and not is_audit:
+                # audit_opinion 本身就是审计页，不应用 is_audit 排除
+                audit_ok = (stmt_type == "audit_opinion") or not is_audit
+                if pos < 200 and _is_data_page(text) and audit_ok:
                     index[stmt_type] = i + 1  # 1-indexed
                     break
                 # 标题在页面末尾 → 数据在下一页
