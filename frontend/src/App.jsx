@@ -421,146 +421,157 @@ function App() {
   return (
     <div className="app">
       <NavBar />
-      <header className="header">
-        <h1>财报侦察官</h1>
-        <p className="subtitle">{data.company} {data.report_year}年度财务评分报告</p>
-      </header>
 
-      <PdfUploader onExtracted={handlePdfExtracted} />
-      <DatasetSelector datasets={datasets} current={datasetId} onChange={handleDatasetChange} />
-
-      <section className="summary">
-        <div className="total-score">
-          <div className="score-number">{data.final_total}</div>
-          <div className="score-max">/ {data.max_total}</div>
-        </div>
-        <RatingBadge rating={data.rating} />
-        {data.raw_total !== data.final_total && (
-          <div className="raw-score">原始得分: {data.raw_total}（红线调整后: {data.final_total}）</div>
-        )}
-        <div className="cache-actions">
-          {fromCache && <span className="cache-badge">缓存</span>}
-          <button className="refresh-btn" onClick={refreshScore} disabled={refreshing}>
-            {refreshing ? '分析中...' : '重新AI分析'}
-          </button>
-        </div>
-      </section>
-
-      {data.waterfall && (
-        <section className="waterfall">
-          <h3>得分瀑布图</h3>
-          <div className="waterfall-bars">
-            {data.waterfall.map((item, i) => {
-              if (item.category) {
-                return (
-                  <div key={i} className="waterfall-item">
-                    <div className="waterfall-label">{item.category}</div>
-                    <div className="waterfall-bar-wrap">
-                      <div className="waterfall-bar earned" style={{ width: `${item.pct}%` }}>
-                        {item.earned}
-                      </div>
-                      <div className="waterfall-bar lost" style={{ width: `${(1 - item.pct / 100) * 100}%` }}>
-                        {item.lost > 0 ? `-${item.lost}` : ''}
-                      </div>
-                    </div>
-                    <div className="waterfall-fraction">{item.earned}/{item.max}</div>
-                  </div>
-                )
-              }
-              if (item.adjustment !== undefined) {
-                return (
-                  <div key={i} className={`waterfall-item adjustment ${item.adjustment < 0 ? 'negative' : ''}`}>
-                    <div className="waterfall-label">{item.label}</div>
-                    <div className="waterfall-value">{item.adjustment === 0 ? '无调整' : `${item.adjustment}分`}</div>
-                  </div>
-                )
-              }
-              return (
-                <div key={i} className="waterfall-item total">
-                  <div className="waterfall-label">{item.label}</div>
-                  <div className="waterfall-value total-value">{item.total}分</div>
-                </div>
-              )
-            })}
+      <div className="dashboard-layout">
+        {/* ── LEFT: main data column ── */}
+        <main className="main-col">
+          <div className="page-header">
+            <h1 className="company-title">{data.company}</h1>
+            <span className="report-period">{data.report_year} 年度财务评分报告</span>
           </div>
-        </section>
-      )}
 
-      <section className="options">
-        <div className="option-group">
-          <label>ROE计算口径：</label>
-          <button className={roeMethod === 'weighted_avg' ? 'active' : ''} onClick={() => handleRoeChange('weighted_avg')}>加权平均</button>
-          <button className={roeMethod === 'endpoint' ? 'active' : ''} onClick={() => handleRoeChange('endpoint')}>期末值</button>
-        </div>
-        <div className="option-group">
-          <label>短期有息负债口径：</label>
-          <button className={debtScope === 'narrow' ? 'active' : ''} onClick={() => handleDebtChange('narrow')}>窄口径</button>
-          <button className={debtScope === 'wide' ? 'active' : ''} onClick={() => handleDebtChange('wide')}>宽口径</button>
-        </div>
-      </section>
-
-      {data.red_lines && data.red_lines.length > 0 && (
-        <section className="red-lines">
-          <h3>红线检查</h3>
-          {data.red_lines.map((rl, i) => (
-            <div key={i} className={`red-line-item ${rl.triggered ? 'triggered' : 'safe'}`}>
-              <div className="red-line-header">
-                <span className={`red-line-badge ${rl.triggered ? 'triggered' : 'safe'}`}>
-                  {rl.triggered ? '触发' : '安全'}
-                </span>
-                <span className="red-line-rule">{rl.rule}</span>
-                {rl.triggered && <span className="red-line-cap">上限{rl.cap}分</span>}
+          {/* Summary hero: big score left + waterfall right */}
+          <section className="summary-hero">
+            <div className="hero-score">
+              <div className="total-score">
+                <div className="score-number">{data.final_total}</div>
+                <div className="score-max">/ {data.max_total}</div>
               </div>
-              <p className="red-line-explanation">{rl.explanation}</p>
+              <RatingBadge rating={data.rating} />
+              {data.raw_total !== data.final_total && (
+                <div className="raw-score">原始 {data.raw_total} → 红线调整后 {data.final_total}</div>
+              )}
+              <div className="cache-actions">
+                {fromCache && <span className="cache-badge">缓存</span>}
+                <button className="refresh-btn" onClick={refreshScore} disabled={refreshing}>
+                  {refreshing ? '分析中...' : '重新AI分析'}
+                </button>
+              </div>
             </div>
-          ))}
-        </section>
-      )}
 
-      {Object.entries(categories).map(([cat, items]) => {
-        const catScore = items.reduce((s, [, it]) => s + it.score, 0)
-        const catMax = CATEGORY_LABELS[cat]?.max || items.reduce((s, [, it]) => s + it.max, 0)
-        const color = CATEGORY_LABELS[cat]?.color || '#666'
-        return (
-          <section key={cat} className="category">
-            <div className="category-header">
-              <h2 style={{ borderLeftColor: color }}>{cat}</h2>
-              <span className="category-score">{catScore}/{catMax}</span>
+            {data.waterfall && (
+              <div className="hero-waterfall">
+                <p className="section-label">得分分布</p>
+                {data.waterfall.map((item, i) => {
+                  if (item.category) {
+                    return (
+                      <div key={i} className="waterfall-item">
+                        <div className="waterfall-label">{item.category}</div>
+                        <div className="waterfall-bar-wrap">
+                          <div className="waterfall-bar earned" style={{ width: `${item.pct}%` }}>
+                            {item.earned}
+                          </div>
+                          <div className="waterfall-bar lost" style={{ width: `${(1 - item.pct / 100) * 100}%` }}>
+                            {item.lost > 0 ? `-${item.lost}` : ''}
+                          </div>
+                        </div>
+                        <div className="waterfall-fraction">{item.earned}/{item.max}</div>
+                      </div>
+                    )
+                  }
+                  if (item.adjustment !== undefined) {
+                    return (
+                      <div key={i} className={`waterfall-item adjustment ${item.adjustment < 0 ? 'negative' : ''}`}>
+                        <div className="waterfall-label">{item.label}</div>
+                        <div className="waterfall-value">{item.adjustment === 0 ? '无调整' : `${item.adjustment}分`}</div>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div key={i} className="waterfall-item total">
+                      <div className="waterfall-label">{item.label}</div>
+                      <div className="waterfall-value total-value">{item.total}分</div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Options — above categories so users can tune before reading */}
+          <section className="options">
+            <div className="option-group">
+              <label>ROE计算口径：</label>
+              <button className={roeMethod === 'weighted_avg' ? 'active' : ''} onClick={() => handleRoeChange('weighted_avg')}>加权平均</button>
+              <button className={roeMethod === 'endpoint' ? 'active' : ''} onClick={() => handleRoeChange('endpoint')}>期末值</button>
             </div>
-            <div className="cards-grid">
-              {items.map(([name, item]) => (
-                <ScoreCard key={name} name={name} item={item} roeMethod={roeMethod} debtScope={debtScope} />
-              ))}
+            <div className="option-group">
+              <label>短期有息负债口径：</label>
+              <button className={debtScope === 'narrow' ? 'active' : ''} onClick={() => handleDebtChange('narrow')}>窄口径</button>
+              <button className={debtScope === 'wide' ? 'active' : ''} onClick={() => handleDebtChange('wide')}>宽口径</button>
             </div>
           </section>
-        )
-      })}
 
-      {auditOpinion && (
-        <section className="audit-section">
-          <h2>审计意见</h2>
-          <div className="audit-result">
-            <span className="audit-label">分类结果：</span>
-            <span className="audit-type">{auditOpinion.opinion_type}</span>
-            <span className={`audit-badge ${auditOpinion.is_clean ? 'clean' : 'warning'}`}>
-              {auditOpinion.is_clean ? '标准' : '非标准'}
-            </span>
-          </div>
-          {auditOpinion.audit_text && (
-            <details className="audit-text-detail">
-              <summary>查看审计意见原文</summary>
-              <div className="audit-text-content">{auditOpinion.audit_text}</div>
-            </details>
+          {/* Score categories */}
+          {Object.entries(categories).map(([cat, items]) => {
+            const catScore = items.reduce((s, [, it]) => s + it.score, 0)
+            const catMax = CATEGORY_LABELS[cat]?.max || items.reduce((s, [, it]) => s + it.max, 0)
+            const color = CATEGORY_LABELS[cat]?.color || '#666'
+            return (
+              <section key={cat} className="category">
+                <div className="category-header">
+                  <h2 style={{ borderLeftColor: color }}>{cat}</h2>
+                  <span className="category-score">{catScore}/{catMax}</span>
+                </div>
+                <div className="cards-grid">
+                  {items.map(([name, item]) => (
+                    <ScoreCard key={name} name={name} item={item} roeMethod={roeMethod} debtScope={debtScope} />
+                  ))}
+                </div>
+              </section>
+            )
+          })}
+        </main>
+
+        {/* ── RIGHT: sidebar ── */}
+        <aside className="sidebar-col">
+          <PdfUploader onExtracted={handlePdfExtracted} />
+          <DatasetSelector datasets={datasets} current={datasetId} onChange={handleDatasetChange} />
+
+          {data.red_lines && data.red_lines.length > 0 && (
+            <section className="red-lines">
+              <h3>红线检查</h3>
+              {data.red_lines.map((rl, i) => (
+                <div key={i} className={`red-line-item ${rl.triggered ? 'triggered' : 'safe'}`}>
+                  <div className="red-line-header">
+                    <span className={`red-line-badge ${rl.triggered ? 'triggered' : 'safe'}`}>
+                      {rl.triggered ? '触发' : '安全'}
+                    </span>
+                    <span className="red-line-rule">{rl.rule}</span>
+                    {rl.triggered && <span className="red-line-cap">上限{rl.cap}分</span>}
+                  </div>
+                  <p className="red-line-explanation">{rl.explanation}</p>
+                </div>
+              ))}
+            </section>
           )}
-        </section>
-      )}
 
-      {/* 思维网络 + AI评价 */}
-      <section className="evaluation">
-        <h2>AI综合评价与思维网络</h2>
-        {evaluation?.summary && <p className="eval-summary">{evaluation.summary}</p>}
-        <MindNetwork insights={data.insights} observations={evaluation?.observations} judgments={evaluation?.judgments} />
-      </section>
+          {auditOpinion && (
+            <section className="audit-section">
+              <h2>审计意见</h2>
+              <div className="audit-result">
+                <span className="audit-label">分类结果：</span>
+                <span className="audit-type">{auditOpinion.opinion_type}</span>
+                <span className={`audit-badge ${auditOpinion.is_clean ? 'clean' : 'warning'}`}>
+                  {auditOpinion.is_clean ? '标准' : '非标准'}
+                </span>
+              </div>
+              {auditOpinion.audit_text && (
+                <details className="audit-text-detail">
+                  <summary>查看审计意见原文</summary>
+                  <div className="audit-text-content">{auditOpinion.audit_text}</div>
+                </details>
+              )}
+            </section>
+          )}
+
+          <section className="evaluation">
+            <h2>AI综合评价</h2>
+            {evaluation?.summary && <p className="eval-summary">{evaluation.summary}</p>}
+            <MindNetwork insights={data.insights} observations={evaluation?.observations} judgments={evaluation?.judgments} />
+          </section>
+        </aside>
+      </div>
 
       <footer className="footer">
         <p>数据来源：{data.company}年度报告 | LLM：OpenAI GPT-4o-mini | 评分逻辑由代码计算，LLM仅用于文本分析与生成</p>
